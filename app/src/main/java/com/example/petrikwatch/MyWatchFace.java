@@ -188,14 +188,17 @@ public class MyWatchFace extends CanvasWatchFaceService {
                 }
                 try {
                     CycleTimetableToday = parseJsonToIntArray(data.getJSONArray("classes"));
-                    if (LastCycleToday < CyclesTodayArray.length()) {
-                        for (int i=CyclesTodayArray.length(); i>LastCycleToday ;i--) {
-                            CyclesTodayArray.remove(i);
+                    if (LastCycleToday < CycleTimetableToday.length) {
+                        for (int i=CycleTimetableToday.length; i>LastCycleToday ;i--) {
+                            //CycleTimetableToday.remove(CycleTimetableToday.length-1);
+                            CycleTimetableToday = removeRow(CycleTimetableToday, CycleTimetableToday.length-1);
                         }
                     }
                     if (FirstCycleToday > 0) {
                         for (int i=0; i<FirstCycleToday ;i++) {
-                            CyclesTodayArray.remove(i);
+                            System.out.println("removed "+i);
+                            //CycleTimetableToday.remove(i);
+                            CycleTimetableToday = removeRow(CycleTimetableToday,i);
                         }
                     }
                 } catch (JSONException e) {
@@ -209,6 +212,23 @@ public class MyWatchFace extends CanvasWatchFaceService {
             initDisplayText();
 
             mDisplayTime = new Time();
+        }
+
+        public int[][] removeRow(int[][] array, int rowIndex) {
+            if (array == null || rowIndex < 0 || rowIndex >= array.length) {
+                throw new IllegalArgumentException("Invalid row index");
+            }
+
+            int[][] newArray = new int[array.length - 1][];
+            int newArrayIndex = 0;
+
+            for (int i = 0; i < array.length; i++) {
+                if (i != rowIndex) {
+                    newArray[newArrayIndex++] = array[i];
+                }
+            }
+
+            return newArray;
         }
 
         @Override
@@ -406,6 +426,7 @@ public class MyWatchFace extends CanvasWatchFaceService {
                     //before school
                     if (mGlobalTimeSeconds < CycleTimetableToday[0][0]) {
                         //TIME TILL DOOM
+                        //System.out.println(CycleTimetableToday[0][0]);
                         return new String[]{"Depression in:",FormatSecondsToTime(CycleTimetableToday[0][0]-mGlobalTimeSeconds)};
                     }
                     //in school
