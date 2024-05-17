@@ -33,6 +33,7 @@ import org.json.JSONArray;
 
 /**
  * Created by paulruiz on 3/25/15.
+ * Thanks for the base Paul! You saved me hours or days! (on 5/17/24)
  */
 public class MyWatchFace extends CanvasWatchFaceService {
 
@@ -79,12 +80,10 @@ public class MyWatchFace extends CanvasWatchFaceService {
         private float mYOffset;
         private float mCenterX;
         private float mCenterY;
-        //private float lineHeight = 8f;
 
-        private int LastCycleToday;
-        private int FirstCycleToday;
-        private JSONArray CyclesTodayArray;
         private int[][] CycleTimetableToday;
+        private boolean OffDay = false;
+        private boolean DayStarted = false;
 
         private int mBackgroundColor = Color.parseColor( "black" );
         private int mTextColor = Color.parseColor( "black" );
@@ -130,11 +129,9 @@ public class MyWatchFace extends CanvasWatchFaceService {
             );
 
             //find create search load analyze etc the file system
-
+            //  I made it this way caz it'd be huge to modify this in a mobile app. But that'd mean coding more java. NO THANK YOU!
             JSONObject data = DataManager.readData(getApplicationContext());
-            if (data == null) { // I'll might put this to a true as we'd probly need to change the values quite often
-                // Data file doesn't exist, create it
-                data = new JSONObject();
+            if (data == null) { // Data file doesn't exist, create it
                 try {
                     String jsonString = "{\n" +
                             "    \"classes\": [\n" +
@@ -159,59 +156,54 @@ public class MyWatchFace extends CanvasWatchFaceService {
                     DataManager.writeData(getApplicationContext(), data);
                 } catch (Exception e) {
                     e.printStackTrace();
+                    //we can't continue with an empty data, so let's just..
+                    int a = 1/0;
                 }
             }
             System.out.println("json: "+ data);
 
-            dayOfWeekIndex = calendar.get(Calendar.DAY_OF_WEEK); // 1-sun, 7-sat; 2-mon, 6-fry, must change what is this format!
-            //if (dayOfWeekIndex == 1) {dayOfWeekIndex = 7;}
-            dayOfWeekIndex-=2; //5 and -1 means weekend
-            try {
-                CyclesTodayArray = data.getJSONArray("days").getJSONArray(dayOfWeekIndex);
-            } catch (JSONException e) {
-                //we can assume because it's the weekends
-                LastCycleToday = -1;
-                FirstCycleToday = -1;
-                try { CyclesTodayArray = new JSONArray("[nuh,uh]");
-                } catch (JSONException jsonException) {
-                    //brother, this is hard coded
-                    int a = 1/0;
-                }
-            } finally {
-                //it's weekdays
-                try {
-                    FirstCycleToday = CyclesTodayArray.getInt(0)-1;
-                    LastCycleToday = CyclesTodayArray.getInt(1)-1; //index
-                } catch (JSONException jsonException) {
-                    //will never happen xd but in case it does
-                    int a = 1/0;
-                }
-                try {
-                    CycleTimetableToday = parseJsonToIntArray(data.getJSONArray("classes"));
-                    if (LastCycleToday < CycleTimetableToday.length) {
-                        for (int i=CycleTimetableToday.length; i>LastCycleToday ;i--) {
-                            //CycleTimetableToday.remove(CycleTimetableToday.length-1);
-                            CycleTimetableToday = removeRow(CycleTimetableToday, CycleTimetableToday.length-1);
-                        }
-                    }
-                    if (FirstCycleToday > 0) {
-                        for (int i=0; i<FirstCycleToday ;i++) {
-                            System.out.println("removed "+i);
-                            //CycleTimetableToday.remove(i);
-                            CycleTimetableToday = removeRow(CycleTimetableToday,i);
-                        }
-                    }
-                } catch (JSONException e) {
-                    //will also most likely never happen
-                    int a = 1/0;
-                }
-            }
+            GetTimetTable(data); //gives data to CycleTimetableToday if applicable otherwise leaves it null
 
             //--
             initBackground();
             initDisplayText();
 
             mDisplayTime = new Time();
+        }
+
+        public void GetTimetTable(JSONObject data) {
+            dayOfWeekIndex = calendar.get(Calendar.DAY_OF_WEEK); // 1-sun, 7-sat; 2-mon, 6-fry, must change what is this format!
+            //if (dayOfWeekIndex == 1) {dayOfWeekIndex = 7;}
+            //dayOfWeekIndex -= 2; //5 and -1 means weekend
+            JSONArray CyclesTodayArray = new JSONArray(); //will get overwriten 100%
+            try {
+                CyclesTodayArray = data.getJSONArray("days").getJSONArray(dayOfWeekIndex-2);
+            } catch (JSONException e) {
+                //we can assume because it's the weekends
+                OffDay = true;
+            } finally {
+                //it's weekdays
+                try {
+                    int FirstCycleToday = CyclesTodayArray.getInt(0) - 1;
+                    int LastCycleToday = CyclesTodayArray.getInt(1);
+
+                    CycleTimetableToday = parseJsonToIntArray(data.getJSONArray("classes"));
+                    if (LastCycleToday < CycleTimetableToday.length) {
+                        for (int i = CycleTimetableToday.length; i > LastCycleToday; i--) {
+                            CycleTimetableToday = removeRow(CycleTimetableToday, CycleTimetableToday.length - 1);
+                        }
+                    }
+                    if (FirstCycleToday > 0) {
+                        for (int i = 0; i < FirstCycleToday; i++) {
+                            System.out.println("removed " + i);
+                            CycleTimetableToday = removeRow(CycleTimetableToday, i);
+                        }
+                    }
+                } catch (JSONException e) {
+                    //will also most likely never happen
+                    int a = 1 / 0;
+                }
+            }
         }
 
         public int[][] removeRow(int[][] array, int rowIndex) {
@@ -240,10 +232,10 @@ public class MyWatchFace extends CanvasWatchFaceService {
              * insets, so that, on round watches with a "chin", the watch face is centered on the
              * entire screen, not just the usable portion.
              */
-            mCenterX = width / 2f;
-            mCenterY = height / 2f;
-
             mTextColorPaint.setTextSize(width/8f);
+            mCenterX = width / 2f;
+            mCenterY = (height / 2f) + mTextColorPaint.getTextSize()/2;
+
 
             super.onSurfaceChanged(holder, format, width, height);
             if (mBackgroundBitmap != null) {
@@ -396,88 +388,68 @@ public class MyWatchFace extends CanvasWatchFaceService {
 
         private void drawTimeText( Canvas canvas ) {
             //HERE HERE
-            //PLACEHOLDER
-            //RIGHT HERE
-            //DO ALL LOGIC HERE BASICALLY
-            //EXCEPT BACKGROUND,THAT'S GONNA BE A PAIN
-
             String[] timeText = GetCorrectTimeText();
             for (int i = 0; i < timeText.length; i++) {
                 float y = mCenterY + (i - (timeText.length - 1) / 2.0f) * mTextColorPaint.getTextSize();;
                 canvas.drawText(timeText[i], mCenterX, y, mTextColorPaint);
             }
-            //canvas.drawText( timeText, mCenterX, mCenterY, mTextColorPaint );
-            //canvas.drawText( "O", mCenterX, mCenterY, mTextColorPaint );
         }
 
         private String[] GetCorrectTimeText(){
             mGlobalTimeSeconds = (mDisplayTime.hour*60+mDisplayTime.minute)*60+mDisplayTime.second;
 
             if( isInAmbientMode() || mIsInMuteMode ) {
-                //timeText += ( mDisplayTime.hour < 12 ) ? "AM" : "PM";
                 return new String[]{String.format("%d", mDisplayTime.hour) + ":" + String.format("%02d", mDisplayTime.minute)};
             } else {
-                if (FirstCycleToday == -1) {
-                    return new String[]{"NINCS MA PETRIK!", "ÉLVEZD AZ ÉLTET!"};
+                if (OffDay) {
+                    return new String[]{"NINCS MA PETRIK","!!!"};
                 }else{
                     //We know that we are going to school today
                     //we have a couple of cases
 
+                    //after school
+                    if (CycleTimetableToday == null) {
+                        return new String[]{"it's over",String.format("%d", mDisplayTime.hour) + ":" + String.format("%02d", mDisplayTime.minute) + ":" + String.format("%02d", mDisplayTime.second)};
+                    }
+
                     //before school
-                    if (mGlobalTimeSeconds < CycleTimetableToday[0][0]) {
+                    if (mGlobalTimeSeconds < CycleTimetableToday[0][0] && !DayStarted) {
                         //TIME TILL DOOM
                         //System.out.println(CycleTimetableToday[0][0]);
                         return new String[]{"Depression in:",FormatSecondsToTime(CycleTimetableToday[0][0]-mGlobalTimeSeconds)};
                     }
+                    DayStarted = true;
+
                     //in school
-                    else if (mGlobalTimeSeconds < CycleTimetableToday[CycleTimetableToday.length-1][1]) {
-                        //ah shit
-                        /**
-                         * day info:
-                         *  cycles left: X
-                         *  last cycle
-                         * class info:
-                         *  cycle ends in: X:X:X
-                         *  cycle begins in: X:X:X
-                         * school info:
-                         *  day ends in: X:X:X
-                          */
-                        String day = "";
-                        String clas= "";
-                        String school = "Day ends in: " + FormatSecondsToTime(CycleTimetableToday[CycleTimetableToday.length-1][1]-mGlobalTimeSeconds);
-
-                        for(int i = 0; i<CycleTimetableToday.length; i++) {
-                            if (mGlobalTimeSeconds > CycleTimetableToday[i][0] && mGlobalTimeSeconds < CycleTimetableToday[i][1]) {
-                                //inside class
-                                clas = "Cycle ends in:" + FormatSecondsToTime(CycleTimetableToday[i][1]-mGlobalTimeSeconds);
-                                // i => nth class
-                                int j = CycleTimetableToday.length-i;
-                                if (j==1) {
-                                    day = "Last cycle";
-                                }else{
-                                    day = "Cycles left: " + j;
-                                }
-                                break;
-                            }else if (i != CycleTimetableToday.length-1 && mGlobalTimeSeconds > CycleTimetableToday[i][1] && mGlobalTimeSeconds < CycleTimetableToday[i+1][0]){
-                                //during break
-                                clas = "Cycle begins in:" + FormatSecondsToTime(CycleTimetableToday[i+1][0]-mGlobalTimeSeconds);
-                                int j = CycleTimetableToday.length-i-1;
-                                if (j==1) {
-                                    day= "One cycle left";
-                                }else{
-                                    day = "Cycles left: " + j;
-                                }
-                                break;
+                    while (true) {
+                        if (mGlobalTimeSeconds > CycleTimetableToday[0][1]){ // if the first class is over, remove it, so the "first" class becomes the 2nd one
+                            if (CycleTimetableToday.length == 1) {// we would have removed all classes
+                                CycleTimetableToday = null; //faster remove only index
+                                return new String[]{"it's over",String.format("%d", mDisplayTime.hour) + ":" + String.format("%02d", mDisplayTime.minute) + ":" + String.format("%02d", mDisplayTime.second)};
                             }
+                            CycleTimetableToday = removeRow(CycleTimetableToday,0);
+                            continue;
                         }
-                        return new String[]{day,clas,school};
-                    }
 
-                    //after school
-                    //if (mGlobalTimeSeconds > CycleTimetableToday[CycleTimetableToday.length-1][1]) // the same thing but the compiler is more happy
-                    else
-                    {
-                        return new String[]{"it's over",String.format("%d", mDisplayTime.hour) + ":" + String.format("%02d", mDisplayTime.minute) + ":" + String.format("%02d", mDisplayTime.second)};
+                        String[] school = new String[]{"Day ends in:",FormatSecondsToTime(CycleTimetableToday[CycleTimetableToday.length - 1][1] - mGlobalTimeSeconds)};
+                        String day;
+                        if (CycleTimetableToday.length == 1){
+                            day = "Last cycle";
+                        }else{
+                            day = "Cycles left: " + CycleTimetableToday.length;
+                        }
+
+                        String[] clas;
+                        //during break
+                        if (mGlobalTimeSeconds <= CycleTimetableToday[0][0]) { // break isn't over
+                            clas = new String[]{"Cycle Begins in:",FormatSecondsToTime(CycleTimetableToday[0][0]-mGlobalTimeSeconds)};
+                        }
+                        //during class
+                        else /*if (mGlobalTimeSeconds <= CycleTimetableToday[0][1])*/ { //class isn't over
+                            clas = new String[]{"Cycle ends in:",FormatSecondsToTime(CycleTimetableToday[0][1]-mGlobalTimeSeconds)};
+                        }
+
+                        return new String[]{day,clas[0],clas[1],school[0],school[1]};
                     }
                 }
             }
